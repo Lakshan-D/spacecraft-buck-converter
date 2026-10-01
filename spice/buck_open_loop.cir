@@ -1,0 +1,41 @@
+* 28V spacecraft bus -> 5V / 3A buck converter, open loop, switching-level model
+* Opens in LTspice (File > Open) and in ngspice. Plain SPICE syntax only.
+*
+* Design equations (see docs/design_note.md):
+*   D    = Vout / Vin            ~ 0.18 (a little higher in practice, drops)
+*   L    = Vout(1-D) / (fsw * dIL)   -> 22uH for dIL = 30% of 3A at 200kHz
+*   Cout = dIL / (8 * fsw * dV)      -> 47uF for ~25mV ripple (before ESR)
+*
+.param Vin=28
+.param fsw=200k
+.param Duty=0.19
+.param Rload=1.667
+.param RonFET=0.05
+.param Rdcr=0.02
+.param Resr=0.005
+
+* Input source and input capacitor
+Vsrc  src 0 DC {Vin}
+Rsrc  src vin 0.01
+Cin   vin 0 20u ic={Vin}
+
+* High-side switch, driven by a fixed-duty PWM source
+Vpwm  ctl 0 PULSE(0 5 0 10n 10n {Duty/fsw} {1/fsw})
+S1    vin sw ctl 0 SWMOD
+.model SWMOD SW(Ron={RonFET} Roff=1Meg Vt=2.5 Vh=0.1)
+
+* Freewheel Schottky diode (anode at ground, cathode at switch node)
+D1    0 sw DSCH
+.model DSCH D(Is=2e-6 N=1.05 Rs=0.015 Cjo=300p Vj=0.5 M=0.5 Bv=60)
+
+* Output filter
+L1    sw lx 22u
+Rdcr1 lx out {Rdcr}
+Cout  out cesr 47u ic=5
+Resr1 cesr 0 {Resr}
+
+* Load: 3A nominal (1.667 ohm), plus a switched extra load for the step test
+Rl    out 0 {Rload}
+
+.tran 10n 2m 0 10n uic
+.end

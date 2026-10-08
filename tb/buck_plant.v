@@ -8,7 +8,7 @@
 `timescale 1ns/1ps
 module buck_plant #(
     parameter real L  = 22e-6,
-    parameter real C  = 47e-6,
+    parameter real C  = 150e-6,
     parameter real RP = 0.1,
     parameter real DT = 10e-9
 ) (

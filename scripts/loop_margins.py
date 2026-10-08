@@ -6,8 +6,8 @@ Delay:       exp(-j*w*1.5*Ts)   (1 period computation/apply delay + 0.5 period Z
 Plant:       codes per count = Vin * CODES_PER_V / PERIOD / (L*C*s^2 + (L/R + C*Rp)*s + 1)
 """
 import numpy as np
-L, C, RP, TS, PERIOD, CPV = 22e-6, 47e-6, 0.1, 5e-6, 500, 512.0
-KP, KI, KD = 0.04, 0.004, 0.4
+L, C, RP, TS, PERIOD, CPV = 22e-6, 150e-6, 0.1, 5e-6, 500, 512.0
+KP, KI, KD = 0.10, 0.008, 1.6
 
 
 def loop(w, vin, r, kp=KP, ki=KI, kd=KD):

@@ -5,18 +5,18 @@ Single bit flip in one state copy at a random time; Vout observed for 300 us.
 | Metric | No TMR | TMR |
 |---|---|---|
 | Upsets injected | 200 | 200 |
-| Upsets with peak error > 100 mV (2 %) | 82 | 0 |
-| Upsets with peak error > 250 mV (5 %) | 75 | 0 |
-| Not recovered to +/-50 mV within 250 us | 28 | 0 |
-| Worst peak error (mV) | 13352 | 14 |
-| Median peak error (mV) | 43 | 14 |
+| Upsets with peak error > 100 mV (2 %) | 70 | 0 |
+| Upsets with peak error > 250 mV (5 %) | 57 | 0 |
+| Not recovered to +/-50 mV within 250 us | 44 | 0 |
+| Worst peak error (mV) | 2815 | 7 |
+| Median peak error (mV) | 38 | 5 |
 
 ## Breakdown by register (no TMR)
 
 | Register | Bits | Upsets | Caused > 100 mV |
 |---|---|---|---|
-| duty | 10 | 29 | 6 |
-| e_prev | 16 | 62 | 39 |
-| integrator | 32 | 109 | 37 |
+| duty | 10 | 29 | 4 |
+| e_prev | 16 | 62 | 26 |
+| integrator | 32 | 109 | 40 |
 
 With TMR, the voter output masks the flipped copy; the mismatch flag is raised in 200/200 cases (telemetry for ground).

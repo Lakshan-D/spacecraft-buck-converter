@@ -8,7 +8,7 @@ Usage: python3 scripts/golden_model.py
 import csv, os, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-VREF, KP, KI, KD, SHIFT, DMAX = 2560, 2621, 262, 26214, 16, 400
+VREF, KP, KI, KD, SHIFT, DMAX = 2560, 6554, 524, 104858, 16, 400
 
 
 def clamp(x, lo, hi):

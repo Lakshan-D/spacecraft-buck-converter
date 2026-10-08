@@ -2,6 +2,9 @@
 
 Author: Lakshan Divakar. Status: simulation study, not built.
 
+Note: sections 2 to 7 below describe iteration 1 (Cout 47 uF). Iteration 2 (Cout 150 uF, retuned PID) is documented in `docs/test_report.md` and the README.
+
+
 ## 1. Requirements and assumptions
 
 | Item | Value | Source |
@@ -26,7 +29,7 @@ Inductor, for 30 % peak-to-peak ripple current at 3 A (0.9 A) and 200 kHz:
 
 Output capacitor, for about 25 mV ripple from the capacitance alone:
 
-    Cout = dIL / (8 * fsw * dV) = 0.9 / (8 * 200e3 * 0.025) = 22.5 uF  ->  47 uF (margin for tolerance and DC-bias loss)
+    Cout = dIL / (8 * fsw * dV) = 0.9 / (8 * 200e3 * 0.025) = 22.5 uF  ->  47 uF in iteration 1 (margin for tolerance and DC-bias loss), raised to 150 uF in iteration 2 (see test report)
 
 Resonance of the output filter: f0 = 1 / (2 pi sqrt(L C)) = 4.95 kHz. This is the double pole the controller has to deal with.
 
@@ -97,7 +100,7 @@ Results are in `results/fault_summary.md`. Limits of this approach are listed in
 
 ## 8. Open issues
 
-* Transient excursions are 9 to 20 % against a 5 % target. Contributing factors: only 47 uF of output capacitance, about 10 kHz crossover, and no input voltage feedforward. Options: more Cout, higher bandwidth, Vin feedforward, or a load-current feedforward.
+* After iteration 2 (150 uF) load steps are about 4 % (203 to 209 mV). The 22 to 36 V line step is still 438 mV (8.8 %). Option: Vin feedforward.
 * Efficiency number excludes switching losses.
 * Discontinuous conduction at light load is not covered by the control model.
-* No soft start: start-up inrush reaches 5.6 A.
+* No soft start: with 150 uF the start-up inrush reaches 10.3 A and Vout overshoots by 1.08 V.

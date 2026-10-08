@@ -31,7 +31,7 @@ D1    0 sw DSCH
 * Output filter
 L1    sw lx 22u
 Rdcr1 lx out {Rdcr}
-Cout  out cesr 47u ic=5
+Cout  out cesr 150u ic=5
 Resr1 cesr 0 {Resr}
 
 * Load: 3A nominal (1.667 ohm), plus a switched extra load for the step test

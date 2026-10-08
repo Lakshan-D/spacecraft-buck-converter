@@ -8,7 +8,7 @@ Prints a table of candidate gains with stability metrics across Vin and load cor
 import numpy as np
 from scipy.linalg import expm
 
-L, C, RP = 22e-6, 47e-6, 0.1
+L, C, RP = 22e-6, 150e-6, 0.1
 TS = 5e-6            # control period = PWM period
 PERIOD = 500         # counts per PWM period
 CODES_PER_V = 512.0  # 12-bit ADC, 8 V full scale

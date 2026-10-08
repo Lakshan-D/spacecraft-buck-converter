@@ -2,11 +2,11 @@
 
 | Event | Peak deviation (mV) | Direction | Settling to +/-50 mV (us) | Peak IL (A) |
 |---|---|---|---|---|
-| Start-up, 28 V, 3 A | 16 | overshoot | 206 | 5.61 |
-| Load 3 A to 0.3 A | 672 | overshoot | 181 | 3.46 |
-| Load 0.3 A to 3 A | 606 | undershoot | 213 | 3.95 |
-| Bus 28 V to 22 V | 500 | undershoot | 241 | 3.31 |
-| Bus 22 V to 36 V | 1011 | overshoot | 228 | 5.07 |
-| Bus 36 V to 28 V | 429 | undershoot | 211 | 3.52 |
+| Start-up, 28 V, 3 A | 1079 | overshoot | 552 | 10.33 |
+| Load 3 A to 0.3 A | 209 | overshoot | 221 | 3.45 |
+| Load 0.3 A to 3 A | 203 | undershoot | 233 | 3.79 |
+| Bus 28 V to 22 V | 232 | undershoot | 226 | 3.48 |
+| Bus 22 V to 36 V | 438 | overshoot | 391 | 4.92 |
+| Bus 36 V to 28 V | 193 | undershoot | 215 | 3.63 |
 
-Steady state (28 V, 3 A): mean Vout = 5.0056 V, ripple = 18.3 mV pk-pk.
+Steady state (28 V, 3 A): mean Vout = 5.0011 V, ripple = 7.4 mV pk-pk.

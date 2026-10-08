@@ -25,9 +25,17 @@ with schemdraw.Drawing(show=False) as d:
     d += elm.Inductor2().right().label("L1 22 uH", loc="top")
     d += elm.Dot()
     d.push()
-    d += elm.Capacitor().down().label("Cout 47 uF", loc="bottom")
+    d += elm.Capacitor().down().label("Cout 150 uF", loc="bottom")
     d += elm.Ground()
     d.pop()
     d += elm.Line().right(1)
     d += elm.Dot(open=True).label("Vout 5 V / 3 A", loc="right")
     d.save(os.path.join(ROOT, "docs", "schematic.png"), dpi=150)
+
+# Flatten onto white so the PNG is readable on GitHub dark mode
+from PIL import Image
+path = os.path.join(ROOT, "docs", "schematic.png")
+im = Image.open(path).convert("RGBA")
+bg = Image.new("RGBA", im.size, (255, 255, 255, 255))
+bg.alpha_composite(im)
+bg.convert("RGB").save(path)

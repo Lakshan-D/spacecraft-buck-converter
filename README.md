@@ -16,15 +16,16 @@ It covers three things in one repo:
 | Item | Result |
 |---|---|
 | Efficiency, 3 A load, 22 to 36 V in (SPICE, conduction losses only) | 91.1 to 92.4 % |
-| Output ripple, worst case across 18 corners (SPICE) | 21 mV pk-pk |
-| Steady-state regulation, closed loop (Verilog sim) | 5.006 V |
-| Phase / gain margin, worst case (frequency response of the loop) | 45 deg / 8.8 dB |
-| Settling after load or line step | 180 to 240 us (to +/-50 mV) |
+| Output ripple, worst case across 18 corners (SPICE) | 18 mV pk-pk |
+| Steady-state regulation, closed loop (Verilog sim) | 5.001 V |
+| Phase / gain margin, worst case (frequency response of the loop) | 46 deg / 7.2 dB |
+| Settling after load or line step | 215 to 391 us (to +/-50 mV) |
+| Step excursion, load steps and 28 to 22 V / 36 to 28 V line steps | 193 to 232 mV (target 250 mV) |
 | RTL vs Python golden model | 1299 / 1299 control ticks identical |
-| Bit-flip faults causing > 100 mV error, **no TMR** | 82 / 200 (worst case 13.4 V) |
+| Bit-flip faults causing > 100 mV error, **no TMR** | 70 / 200 (worst case 2.8 V) |
 | Bit-flip faults causing > 100 mV error, **with TMR** | 0 / 200 |
 
-Known shortfall: load and line steps cause 430 to 1010 mV excursions (9 to 20 %). See `docs/test_report.md` for why and what to change.
+Output capacitor is 150 uF after iteration 2 (iteration 1 used 47 uF, with 430 to 1010 mV step excursions). Known shortfalls now: the 22 to 36 V line step still gives 438 mV (target 250 mV), and start-up overshoots by 1.08 V with a 10.3 A inrush peak because there is no soft start. See `docs/test_report.md` (Iteration 2) for the before and after.
 
 ![Closed loop](results/loop_response.png)
 ![Fault injection](results/fault_injection.png)
@@ -68,16 +69,16 @@ Open `spice/buck_open_loop.cir` directly in LTspice (File > Open, then Run) to s
 * The SPICE power stage uses an ideal switch plus a Schottky diode and has **no switching losses or gate-drive loss**, so efficiency is optimistic. Most of the loss is diode conduction, so a synchronous rectifier should help (not simulated).
 * The Verilog loop simulation uses a behavioural synchronous buck (forced continuous conduction, inductor current can go negative). It does not model discontinuous mode, ADC noise, ESR or temperature drift of parts.
 * Fault injection flips bits in the controller state only. It does not model upsets in the PWM counter, ADC path, clock, configuration memory, or multiple-bit upsets between scrubs. Real radiation tolerance also needs part selection and testing, which this repo does not cover.
-* There is no output over-voltage protection, so an uncorrected upset lets Vout rise far past 5 V in the model (13 V). A real design needs an independent OVP.
+* There is no output over-voltage protection, so an uncorrected upset lets Vout rise far past 5 V in the model (2.8 V). A real design needs an independent OVP.
 * The 22 to 36 V bus range and 5 V / 3 A load are assumptions chosen for this study, not taken from a specific mission standard.
 
 ## Next steps
 
-1. Add Vin feedforward and a larger output capacitor to cut load and line step excursions.
+1. Add Vin feedforward to cut the 22 to 36 V line step excursion (438 mV).
 2. Replace the diode with a synchronous rectifier and re-run efficiency.
 3. Synthesise `rtl/` for a small FPGA (for example iCE40 with yosys/nextpnr, or Xilinx Vivado) and report resource use and timing.
 4. Add a hardware-in-the-loop version with a prototype board.
-5. Add soft start and an OVP comparator.
+5. Add soft start (start-up overshoot is 1.08 V with 10.3 A inrush) and an OVP comparator.
 
 ## Licence
 

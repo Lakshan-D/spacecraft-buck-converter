@@ -6,7 +6,7 @@
 //   duty'    = clamp(u, 0, DMAX)                   (PWM counts)
 //
 // Gains are signed integers scaled by 2^SHIFT (counts per ADC code).
-// Defaults: KP=0.04, KI=0.004, KD=0.40 in Q16.
+// Defaults: KP=0.10, KI=0.008, KD=1.60 in Q16 (retuned for Cout = 150 uF).
 //
 // State (integ, e_prev, duty) is packed into one vector and stored three times.
 // With TMR=1 every use of the state goes through a bitwise majority voter and
@@ -15,9 +15,9 @@
 module pid_ctrl #(
     parameter TMR             = 1,
     parameter [11:0] VREF     = 12'd2560,        // 5.000 V with 8 V full-scale, 12-bit ADC
-    parameter signed [17:0] KP = 18'sd2621,      // 0.040 * 65536
-    parameter signed [17:0] KI = 18'sd262,       // 0.004 * 65536
-    parameter signed [17:0] KD = 18'sd26214,     // 0.400 * 65536
+    parameter signed [17:0] KP = 18'sd6554,      // 0.100 * 65536
+    parameter signed [17:0] KI = 18'sd524,       // 0.008 * 65536
+    parameter signed [17:0] KD = 18'sd104858,    // 1.600 * 65536
     parameter SHIFT           = 16,
     parameter [9:0] DMAX      = 10'd400          // 80 % max duty
 ) (

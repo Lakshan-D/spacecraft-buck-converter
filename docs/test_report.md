@@ -1,5 +1,7 @@
 # Test report
 
+This report has two parts. Iteration 1 (47 uF output capacitor) is the first run. Iteration 2 (150 uF, retuned gains) is at the end, with a before and after comparison.
+
 All numbers come from the scripts in this repo (`make all`) and the tables in `results/`. Requirements are the self-set ones in `docs/design_note.md`.
 
 ## Summary
@@ -61,3 +63,30 @@ Not covered: upsets in the PWM counter, ADC, clock or configuration memory, mult
     make all
 
 SPICE takes about 3 minutes, the Verilog runs about 1 minute. Tested with Icarus Verilog 12, ngspice 42, Python 3.13.
+
+
+## Iteration 2: larger output capacitor and retuned PID
+
+Why: iteration 1 failed R5 (step excursion 429 to 1011 mV against a 250 mV target). The hand calculation dV about dI / (2 pi fc C) pointed at the 47 uF capacitor, so Cout was raised to 150 uF (predicted droop about 0.29 V at the same crossover).
+
+What changed: Cout 47 uF to 150 uF in `tb/buck_plant.v`, both SPICE netlists, `scripts/tune_pid.py` and `scripts/loop_margins.py`. The larger capacitor lowers the LC resonance from 4.95 kHz to 2.77 kHz, so the PID was retuned (grid search with phase margin at least 45 deg and gain margin at least 6 dB at all nine Vin and load corners). New gains: Kp 0.10, Ki 0.008, Kd 1.60 (Q16: 6554, 524, 104858), previously 0.04, 0.004, 0.40. The golden model and RTL were updated together.
+
+| Check | Iteration 1 (47 uF) | Iteration 2 (150 uF) |
+|---|---|---|
+| Steady-state Vout | 5.0056 V | 5.0011 V |
+| Ripple, worst of 18 SPICE corners | 21 mV | 18 mV |
+| Load step 3 A to 0.3 A | 672 mV | 209 mV |
+| Load step 0.3 A to 3 A | 606 mV | 203 mV |
+| Bus 28 V to 22 V | 500 mV | 232 mV |
+| Bus 36 V to 28 V | 429 mV | 193 mV |
+| Bus 22 V to 36 V | 1011 mV | 438 mV |
+| Recovery to +/-50 mV, load and line steps | 181 to 241 us | 215 to 391 us |
+| Phase margin / gain margin (worst case) | 45.3 deg / 8.8 dB | 46.0 deg / 7.2 dB |
+| Start-up overshoot / peak inductor current | 16 mV / 5.6 A | 1079 mV / 10.3 A |
+| RTL vs golden model | 1299 / 1299 | 1299 / 1299 |
+| Bit flips causing > 100 mV, no TMR | 82 / 200 (worst 13.4 V) | 70 / 200 (worst 2.8 V) |
+| Bit flips causing > 100 mV, TMR | 0 / 200 | 0 / 200 |
+
+Result: R5 now passes for the load steps (203 to 209 mV) and for two of the three line steps. The 14 V instantaneous line step from 22 V to 36 V is still 438 mV, which would need Vin feedforward. Recovery is slower (up to 391 us, still inside the 500 us limit) and the stability margins are slightly tighter at the highest input voltage.
+
+New problem found: with 150 uF and no soft start, start-up now overshoots by 1.08 V and draws a 10.3 A inrush peak. A real design needs soft start. The no-TMR fault run is milder (worst 2.8 V) largely because the bigger capacitor slows how fast a wrong duty moves the output, but 70 of 200 flips still exceed 100 mV, and TMR still stops all of them.

@@ -16,7 +16,7 @@ D1    0 sw DSCH
 .model DSCH D(Is=2e-6 N=1.05 Rs=0.015 Cjo=300p Vj=0.5 M=0.5 Bv=60)
 L1    sw lx 22u
 Rdcr1 lx out {Rdcr}
-Cout  out cesr 47u ic=6.5
+Cout  out cesr 150u ic=6.5
 Resr1 cesr 0 {Resr}
 
 * Light load always on (0.3A), heavy load added at t = 1ms

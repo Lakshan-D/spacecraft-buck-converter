@@ -4,6 +4,7 @@
 // Semi-implicit Euler (update iL, then vc with the new iL) so the LC loop does not
 // gain or lose energy numerically. Updates on the falling clock edge so the RTL,
 // which samples on the rising edge, never races with it.
+// The plant also provides a Vin ADC code for the feedforward path.
 // Real values cross the port as 64-bit vectors ($realtobits) for tool portability.
 `timescale 1ns/1ps
 module buck_plant #(
@@ -16,13 +17,14 @@ module buck_plant #(
     input         pwm,
     input  [63:0] vin_b,
     input  [63:0] rload_b,
-    output reg [11:0] adc,
+    output reg [11:0] adc,       // Vout, 512 codes per volt (8 V full-scale)
+    output reg [11:0] vin_adc,   // Vin, 100 codes per volt (40.95 V full-scale)
     output [63:0] vo_b,
     output [63:0] il_b
 );
-    real il, vc, vsw, vin, rload, code;
+    real il, vc, vsw, vin, rload, code, vcode;
 
-    initial begin il = 0.0; vc = 0.0; adc = 12'd0; end
+    initial begin il = 0.0; vc = 0.0; adc = 12'd0; vin_adc = 12'd0; end
 
     assign vo_b = $realtobits(vc);
     assign il_b = $realtobits(il);
@@ -37,5 +39,9 @@ module buck_plant #(
         if (code < 0.0)         adc <= 12'd0;
         else if (code > 4095.0) adc <= 12'd4095;
         else                    adc <= $rtoi(code);
+        vcode = vin * 100.0 + 0.5;                // Vin sense, ideal (no noise, no filter)
+        if (vcode < 0.0)         vin_adc <= 12'd0;
+        else if (vcode > 4095.0) vin_adc <= 12'd4095;
+        else                     vin_adc <= $rtoi(vcode);
     end
 endmodule

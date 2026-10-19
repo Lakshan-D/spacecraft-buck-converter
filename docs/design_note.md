@@ -2,7 +2,7 @@
 
 Author: Lakshan Divakar. Status: simulation study, not built.
 
-Note: sections 2 to 7 below describe iteration 1 (Cout 47 uF). Iteration 2 (Cout 150 uF, retuned PID) is documented in `docs/test_report.md` and the README.
+Note: sections 2 to 7 below describe iteration 1 (Cout 47 uF). Iteration 2 (Cout 150 uF, retuned PID) and iteration 3 (Vin feedforward and soft start) are documented in `docs/test_report.md` and the README. Section 5b and the changed lines in sections 6 to 8 cover iteration 3.
 
 
 ## 1. Requirements and assumptions
@@ -79,19 +79,26 @@ Loop margins (continuous approximation of the sampled loop):
 
 Worst case is 45.3 deg and 8.8 dB at high line and light load. That meets the rule above but with little spare phase margin. A time-domain check with gains scaled from 0.5x to 1.5x stayed stable.
 
+## 5b. Feedforward and soft start (iteration 3)
+
+Vin feedforward. In the averaged model Vout = D * Vin, so the duty that gives Vout = Vref is D = Vref / Vin. The controller measures Vin (12-bit code, 100 codes per volt) and adds `ff = ref * PERIOD * VIN_CPV / (ADC_CPV * vin)` duty counts (about 89 counts at 28 V, 113 at 22 V, 69 at 36 V) to the PID output. The PID integrator now only has to hold the leftover, which is the drop across the diode and DCR (about 6 counts at 3 A), so it is allowed to go negative. The feedforward is additive and outside the feedback loop, so the loop transfer function and the margins in section 5 do not change. The 22 to 36 V step that gave 438 mV with feedback alone now gives 60 mV, because the duty moves at the next tick instead of after the error has built up.
+
+Soft start. The reference ramps from 0 to 5 V at 16 ADC codes (31 mV) per switching period, 0.8 ms in total, and the same ramped reference feeds the error and the feedforward. The charge current into 150 uF is C dV/dt = 150 uF * 6.25 V/ms, about 0.9 A on top of the resistive load. Start-up peak inductor current falls from 10.3 A to 4.4 A and overshoot from 1079 mV to 73 mV. Soft start alone fixes start-up and feedforward alone fixes the line steps; feedforward without soft start makes start-up worse (12.8 A), see the ablation in the test report.
+
 ## 6. Digital implementation choices
 
 * 12-bit ADC, 8 V full scale, so 5.000 V is code 2560.
 * 200 kHz PWM from a 100 MHz clock, 500 counts per period, so duty resolution is 0.2 %.
-* Duty limited to 80 % (400 counts). Integrator clamped between 0 and the duty limit, which is the anti-windup.
+* Duty limited to 80 % (400 counts). Integrator clamped between 0 and the duty limit (iteration 1 and 2) or plus and minus the duty limit when feedforward is on (iteration 3), which is the anti-windup.
 * All arithmetic in 48-bit signed inside the controller so that a corrupted state value cannot overflow.
+* The feedforward divide is a 48-bit combinational `/`, which is fine in simulation but would be a large, slow block in an FPGA. A real version would use a multi-cycle divider or a reciprocal table. Not synthesised.
 * The PID math is combinational in one cycle. That is fine for simulation. On a real FPGA at 100 MHz the multipliers would use DSP blocks and may need a pipelined or multi-cycle version; this has not been checked.
 
 ## 7. Radiation tolerance approach (single-event upsets)
 
 Charged particles can flip bits in registers (single-event upsets, SEU). In a closed-loop controller a flipped integrator or duty bit can drive the output far off target before the loop recovers. The mitigation implemented here is triple modular redundancy:
 
-* The controller state is stored three times.
+* The controller state (soft start reference, integrator, previous error, duty: 70 bits after iteration 3) is stored three times.
 * A bitwise majority voter produces the value used by the control law and the PWM.
 * The voted next state is written to all three copies every switching period (scrubbing), so a single upset cannot accumulate into a second one.
 * A mismatch flag reports that an upset was corrected.
@@ -100,7 +107,7 @@ Results are in `results/fault_summary.md`. Limits of this approach are listed in
 
 ## 8. Open issues
 
-* After iteration 2 (150 uF) load steps are about 4 % (203 to 209 mV). The 22 to 36 V line step is still 438 mV (8.8 %). Option: Vin feedforward.
+* After iteration 3 load steps are about 4 % (203 to 207 mV) and line steps are 23 to 60 mV, so the step excursion requirement passes. The Vin sense is ideal in the model (no noise or filter) and has not been tested with a realistic one.
 * Efficiency number excludes switching losses.
 * Discontinuous conduction at light load is not covered by the control model.
-* No soft start: with 150 uF the start-up inrush reaches 10.3 A and Vout overshoots by 1.08 V.
+* Soft start added in iteration 3 (0.8 ms ramp, one value tried): start-up is 73 mV overshoot and 4.4 A peak. Output over-voltage protection is still missing.

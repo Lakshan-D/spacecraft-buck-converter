@@ -1,11 +1,14 @@
 // Single-event-upset (SEU) fault injection.
 // Run with -Ptb_fault_inject.TMR=0 (plain PID) or =1 (TMR + voter + scrub).
+// FF_EN / SS_STEP pick the controller variant. +tag=NAME writes results/fault_NAME_tmrN.csv.
 // After the loop settles, flip ONE random bit in ONE random state copy at a random
 // time, watch Vout for WINDOW clocks, log the result, repeat N times.
 // The same seed gives the same bit/time sequence for both runs.
 `timescale 1ns/1ps
 module tb_fault_inject;
     parameter TMR    = 1;
+    parameter FF_EN  = 1;
+    parameter SS_STEP = 16;
     parameter N      = 200;                    // number of injected upsets
     parameter WINDOW = 30000;                  // clocks observed per upset (300 us)
     parameter TAIL   = 5000;                   // last 50 us used to judge recovery
@@ -19,26 +22,30 @@ module tb_fault_inject;
     wire [63:0] vin_b   = $realtobits(vin);
     wire [63:0] rload_b = $realtobits(rload);
     wire [63:0] vo_b, il_b;
-    wire [11:0] adc;
+    wire [11:0] adc, vin_adc;
     wire        pwm, mism;
 
-    buck_ctrl_top #(.TMR(TMR)) dut (.clk(clk), .rst(rst), .adc(adc), .pwm(pwm), .tmr_mismatch(mism));
+    buck_ctrl_top #(.TMR(TMR), .FF_EN(FF_EN), .SS_STEP(SS_STEP)) dut (
+        .clk(clk), .rst(rst), .adc(adc), .vin_adc(vin_adc), .pwm(pwm), .tmr_mismatch(mism));
     buck_plant plant (.clk(clk), .pwm(pwm), .vin_b(vin_b), .rload_b(rload_b),
-                      .adc(adc), .vo_b(vo_b), .il_b(il_b));
+                      .adc(adc), .vin_adc(vin_adc), .vo_b(vo_b), .il_b(il_b));
 
-    localparam W = 58;
+    localparam W = 70;                         // ref(12) + integ(32) + e_prev(16) + duty(10)
     integer seed = SEED;
     integer i, k, copy, bit_i, delay_clk, f;
+    reg [8*48-1:0] tag, path;
     real    dev, peak, tail_peak;
     reg     detected;
     reg [W-1:0] mask;
     reg [W-1:0] tmp;
 
     initial begin
-        f = $fopen(TMR ? "results/fault_tmr1.csv" : "results/fault_tmr0.csv", "w");
+        if ($value$plusargs("tag=%s", tag)) $sformat(path, "results/fault_%0s_tmr%0d.csv", tag, TMR);
+        else                                $sformat(path, "results/fault_tmr%0d.csv", TMR);
+        f = $fopen(path, "w");
         $fwrite(f, "idx,copy,bit,peak_mV,tail_mV,detected\n");
         #100 rst = 0;
-        repeat (150000) @(posedge clk);            // 1.5 ms: let the loop settle
+        repeat (200000) @(posedge clk);            // 2.0 ms: soft start (0.8 ms) done and loop settled
 
         for (i = 0; i < N; i = i + 1) begin
             peak = 0.0; tail_peak = 0.0; detected = 0;

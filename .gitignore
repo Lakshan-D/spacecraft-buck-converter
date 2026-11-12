@@ -1,0 +1,3 @@
+*.vvp
+syn/build/
+__pycache__/

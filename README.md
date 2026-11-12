@@ -7,7 +7,7 @@ It covers three things in one repo:
 2. **Digital control in Verilog**: fixed-point PID voltage-mode controller with Vin feedforward and soft start, and a PWM generator, written as synthesisable RTL and checked in simulation against a bit-exact Python model.
 3. **Single-event-upset (SEU) tolerance**: triple modular redundancy (TMR) with a majority voter and per-period scrubbing, tested by injecting 200 random bit flips into the controller state.
 
-**Status: simulation only.** No hardware has been built and the RTL has not been synthesised for an FPGA yet (see "Limitations" and "Next steps").
+**Status: simulation and FPGA synthesis.** The controller RTL has been synthesised and placed and routed for a Lattice ECP5 with the open-source flow (yosys + nextpnr) and meets its 100 MHz clock (`docs/synthesis_report.md`). No hardware has been built and no board has been programmed (see "Limitations" and "Next steps").
 
 ![Schematic](docs/schematic.png)
 
@@ -25,6 +25,9 @@ It covers three things in one repo:
 | Step excursion, line steps (28 to 22 V, 22 to 36 V, 36 to 28 V) | 31 / 60 / 23 mV (target 250 mV) |
 | Start-up with 0.8 ms soft start | 73 mV overshoot, 4.4 A peak inductor current |
 | RTL vs Python golden model | 1299 / 1299 control ticks identical |
+| FPGA timing, ECP5 LFE5U-25F, 100 MHz target | 116.6 to 123.0 MHz over 3 seeds (multi-cycle controller); original single-cycle RTL: 4.7 MHz |
+| FPGA resources, ECP5 | 754 LUTs (3 %), 783 FFs, 4 of 28 DSPs |
+| Multi-cycle vs single-cycle controller | 120 000 / 120 000 random and corner-case updates bit-identical |
 | Bit-flip faults causing > 100 mV error, **no TMR** | 69 / 200 (worst case 5.7 V) |
 | Bit-flip faults causing > 100 mV error, **with TMR** | 0 / 200 |
 
@@ -40,10 +43,11 @@ Fault injection caveat: without TMR the new controller looks about the same as i
 
 ```
 spice/      buck_open_loop.cir, buck_load_step.cir   power stage netlists (LTspice and ngspice)
-rtl/        pwm_gen.v, pid_ctrl.v, tmr_voter.v, buck_ctrl_top.v   synthesisable Verilog
-tb/         buck_plant.v, tb_buck_loop.v, tb_fault_inject.v       testbenches (not synthesisable)
+rtl/        pwm_gen.v, pid_ctrl.v, pid_ctrl_seq.v, tmr_voter.v, tmr_copy.v, buck_ctrl_top.v   synthesisable Verilog
+tb/         buck_plant.v, tb_buck_loop.v, tb_fault_inject.v, tb_equiv.v           testbenches (not synthesisable)
+syn/        run_synth.sh (yosys + nextpnr), reports/summary.txt
 scripts/    run_spice.py, tune_pid.py, loop_margins.py, golden_model.py, plot_results.py, ablation.py, draw_schematic.py
-docs/       design_note.md, test_report.md, schematic.png
+docs/       design_note.md, test_report.md, synthesis_report.md, schematic.png
 results/    plots, CSV logs and auto-generated summary tables
 ```
 
@@ -58,7 +62,10 @@ make fault             # 2 x 200 fault injections (about 40 s)
 make ablate            # feedforward / soft start on and off, plus fault runs on the old controller (about 1 min)
 make plots             # figures and tables in results/
 make spice             # SPICE corner sweep (about 3 min)
-make all               # everything
+make equiv             # multi-cycle controller vs single-cycle reference, bit for bit (about 30 s)
+make sim_seq fault_seq # closed loop + golden check + fault injection with the multi-cycle controller
+make synth             # FPGA synthesis and place and route, ECP5 and iCE40 (about 15 min)
+make all               # everything except synth
 ```
 
 Open `spice/buck_open_loop.cir` directly in LTspice (File > Open, then Run) to see the power stage waveforms. Waveforms from the Verilog run can be viewed from `results/loop_log.csv`.
@@ -71,17 +78,19 @@ Open `spice/buck_open_loop.cir` directly in LTspice (File > Open, then Run) to s
 * Soft start: the reference starts at 0 and rises 16 ADC codes (31 mV) per switching period until it reaches 5 V, a ramp of 0.8 ms. The same ramped reference feeds both the error and the feedforward. `SS_STEP = 0` turns it off.
 * With `FF_EN = 0` and `SS_STEP = 0` the RTL gives the iteration 2 waveform bit for bit, which is how the before and after numbers are made.
 * TMR: the 70-bit controller state (soft start reference, integrator, previous error, duty) is stored three times. Every read goes through a bitwise 2-of-3 voter, and the voted next state is written back to all three copies every period, so a single upset is both masked and scrubbed. A mismatch flag is raised for telemetry.
+* FPGA build: `buck_ctrl_top` has a `SEQ` parameter. `SEQ=0` uses the single-cycle reference controller; `SEQ=1` uses `pid_ctrl_seq.v`, which spreads the same maths over 15 clocks (one quotient bit of the feedforward divide per clock, multiplies on DSP blocks) so it closes timing at 100 MHz. `tb/tb_equiv.v` checks the two give the same new state for random and corner-case inputs, including corrupted states.
 * Fault injection: a random bit of a random copy is flipped at a random time, then Vout is watched for 300 us. The same bit and time sequence is replayed with TMR off and on.
 
 ## Limitations (please read)
 
-* **Simulation only.** No PCB, no hardware, no FPGA synthesis or timing report yet.
+* **No hardware.** No PCB, and no FPGA board has been programmed. Synthesis and timing are from the open-source flow only (not checked in a vendor tool), and I/O timing is not constrained.
 * The SPICE power stage uses an ideal switch plus a Schottky diode and has **no switching losses or gate-drive loss**, so efficiency is optimistic. Most of the loss is diode conduction, so a synchronous rectifier should help (not simulated).
 * The Verilog loop simulation uses a behavioural synchronous buck (forced continuous conduction, inductor current can go negative). It does not model discontinuous mode, ADC noise, ESR or temperature drift of parts.
 * Fault injection flips bits in the controller state only. It does not model upsets in the PWM counter, ADC path, clock, configuration memory, or multiple-bit upsets between scrubs. Real radiation tolerance also needs part selection and testing, which this repo does not cover.
 * There is no output over-voltage protection, so an uncorrected upset lets Vout rise far past 5 V in the model (5.7 V worst case). A real design needs an independent OVP.
 * The Vin sense is ideal in the model (no noise, no filter, no ADC error beyond rounding to 10 mV) and the bus steps are instantaneous. A real feedforward path needs a filter and will see Vin ripple and measurement error, which the integrator then has to trim.
-* The feedforward divide is a 48-bit combinational `/` in the RTL. It simulates and should synthesise, but it would be slow and large on an FPGA. A real version would use a multi-cycle divider or a reciprocal table. Not synthesised or timed.
+* The single-cycle controller (`pid_ctrl.v`) does the whole update, including a 48-bit divide, in one clock. It is kept as the reference model but only reaches 4.7 MHz on an FPGA. The multi-cycle version (`pid_ctrl_seq.v`, `SEQ=1`) is the one to build: same results bit for bit, but the new duty lands 14 clocks (140 ns) into each switching period. All committed simulation results use `SEQ=0`; `make sim_seq fault_seq` gives the `SEQ=1` versions, which match within a few mV.
+* TMR covers the controller state only. The PWM counter, the voter and the pipeline registers inside the multi-cycle controller are not triplicated. Synthesis tools also merge identical registers, which silently removed the TMR until each copy was put in its own `keep_hierarchy` instance (`rtl/tmr_copy.v`). A vendor tool would need the same check.
 * A bit flip in the soft start reference register (bit 11 or 9, which are set at 5 V) restarts the ramp from a lower value, which dips Vout. TMR masks it, but without TMR this register is a new weak spot.
 * The fault injection runs upsets back to back, so without TMR some start while the previous upset is still recovering. This is also true of the iteration 2 numbers.
 * The 22 to 36 V bus range and 5 V / 3 A load are assumptions chosen for this study, not taken from a specific mission standard.
@@ -89,7 +98,7 @@ Open `spice/buck_open_loop.cir` directly in LTspice (File > Open, then Run) to s
 ## Next steps
 
 1. Replace the diode with a synchronous rectifier and re-run efficiency.
-2. Synthesise `rtl/` for a small FPGA (for example iCE40 with yosys/nextpnr, or Xilinx Vivado) and report resource use and timing. Replace the combinational feedforward divide first.
+2. Done for ECP5 (`docs/synthesis_report.md`). Still to do: run a vendor tool (Lattice Radiant or Vivado), constrain the I/O and ADC interface, and load it onto a board. The iCE40 UP5K fits but only closes at 35 MHz, so it would need a lower clock and PERIOD.
 3. Add a filter and noise to the Vin sense path and re-check the line step.
 4. Add a hardware-in-the-loop version with a prototype board.
 5. Add an independent OVP comparator.

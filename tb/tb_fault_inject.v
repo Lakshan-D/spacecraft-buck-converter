@@ -5,6 +5,11 @@
 // time, watch Vout for WINDOW clocks, log the result, repeat N times.
 // The same seed gives the same bit/time sequence for both runs.
 `timescale 1ns/1ps
+`ifdef SEQ_CTRL
+  `define PID dut.g_seq.u_pid
+`else
+  `define PID dut.g_comb.u_pid
+`endif
 module tb_fault_inject;
     parameter TMR    = 1;
     parameter FF_EN  = 1;
@@ -13,6 +18,7 @@ module tb_fault_inject;
     parameter WINDOW = 30000;                  // clocks observed per upset (300 us)
     parameter TAIL   = 5000;                   // last 50 us used to judge recovery
     parameter SEED   = 12345;
+    parameter SEQ    = 0;                      // 1 = multi-cycle controller; also compile with -DSEQ_CTRL
 
     reg clk = 0;
     reg rst = 1;
@@ -25,8 +31,9 @@ module tb_fault_inject;
     wire [11:0] adc, vin_adc;
     wire        pwm, mism;
 
-    buck_ctrl_top #(.TMR(TMR), .FF_EN(FF_EN), .SS_STEP(SS_STEP)) dut (
-        .clk(clk), .rst(rst), .adc(adc), .vin_adc(vin_adc), .pwm(pwm), .tmr_mismatch(mism));
+    buck_ctrl_top #(.TMR(TMR), .FF_EN(FF_EN), .SS_STEP(SS_STEP), .SEQ(SEQ)) dut (
+        .clk(clk), .rst(rst), .adc(adc), .vin_adc(vin_adc), .pwm(pwm), .tmr_mismatch(mism),
+        .ctrl_upd());
     buck_plant plant (.clk(clk), .pwm(pwm), .vin_b(vin_b), .rload_b(rload_b),
                       .adc(adc), .vin_adc(vin_adc), .vo_b(vo_b), .il_b(il_b));
 
@@ -58,9 +65,9 @@ module tb_fault_inject;
             mask[bit_i] = 1'b1;
 
             @(negedge clk);                        // inject away from the active edge
-            if (copy == 0)      begin tmp = dut.u_pid.state0; dut.u_pid.state0 = tmp ^ mask; end
-            else if (copy == 1) begin tmp = dut.u_pid.state1; dut.u_pid.state1 = tmp ^ mask; end
-            else                begin tmp = dut.u_pid.state2; dut.u_pid.state2 = tmp ^ mask; end
+            if (copy == 0)      begin tmp = `PID.state0; `PID.r0.q = tmp ^ mask; end
+            else if (copy == 1) begin tmp = `PID.state1; `PID.r1.q = tmp ^ mask; end
+            else                begin tmp = `PID.state2; `PID.r2.q = tmp ^ mask; end
 
             for (k = 0; k < WINDOW; k = k + 1) begin
                 @(posedge clk);

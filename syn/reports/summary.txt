@@ -1,0 +1,25 @@
+Synthesis summary (2026-11-12, Yosys 0.70, nextpnr-0.11.1)
+Target clock 100 MHz (PERIOD = 500 counts for 200 kHz PWM).
+
+== ECP5 LFE5U-25F, SEQ=0
+seed 1: 4.68 MHz (FAIL at 100.00 MHz)
+seed 2: 4.70 MHz (FAIL at 100.00 MHz)
+seed 3: 4.66 MHz (FAIL at 100.00 MHz)
+	          MULT18X18D:      15/     28    53%
+	          TRELLIS_FF:     221/  24288     0%
+	        TRELLIS_COMB:    7412/  24288    30%
+critical path: 83.35 ns logic, 130.42 ns routing
+
+== ECP5 LFE5U-25F, SEQ=1
+seed 1: 122.97 MHz (PASS at 100.00 MHz)
+seed 2: 117.83 MHz (PASS at 100.00 MHz)
+seed 3: 116.62 MHz (PASS at 100.00 MHz)
+	          MULT18X18D:       4/     28    14%
+	          TRELLIS_FF:     783/  24288     3%
+	        TRELLIS_COMB:     754/  24288     3%
+critical path: 4.85 ns logic, 3.28 ns routing
+
+== iCE40 UP5K, SEQ=1
+seed 1: 35.49 MHz (FAIL at 100.00 MHz)
+	         ICESTORM_LC:    1200/   5280    22%
+	        ICESTORM_DSP:       5/      8    62%

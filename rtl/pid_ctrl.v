@@ -46,7 +46,14 @@ module pid_ctrl #(
 );
     localparam W = 12 + 32 + 16 + 10;            // ref, integ, e_prev, duty
 
-    reg  [W-1:0] state0, state1, state2;
+    // Three copies of the state, each in its own tmr_copy instance so synthesis cannot
+    // merge them (see tmr_copy.v). Fault injection writes r0.q / r1.q / r2.q.
+    wire [W-1:0] state0, state1, state2;
+    wire         st_load;
+    wire [W-1:0] st_next;
+    tmr_copy #(.W(W)) r0 (.clk(clk), .rst(rst), .en(st_load), .d(st_next), .q(state0));
+    tmr_copy #(.W(W)) r1 (.clk(clk), .rst(rst), .en(st_load), .d(st_next), .q(state1));
+    tmr_copy #(.W(W)) r2 (.clk(clk), .rst(rst), .en(st_load), .d(st_next), .q(state2));
     wire [W-1:0] voted;
 
     tmr_voter #(.W(W)) u_vote (.a(state0), .b(state1), .c(state2), .y(voted));
@@ -92,17 +99,8 @@ module pid_ctrl #(
 
     wire [W-1:0] next_state = {ref_n_u[11:0], integ_n[31:0], e_s[15:0], u_c[9:0]};
 
-    always @(posedge clk) begin
-        if (rst) begin
-            state0 <= {W{1'b0}};
-            state1 <= {W{1'b0}};
-            state2 <= {W{1'b0}};
-        end else if (tick) begin
-            state0 <= next_state;
-            state1 <= next_state;
-            state2 <= next_state;
-        end
-    end
+    assign st_load = tick;
+    assign st_next = next_state;
 
     assign duty         = st[9:0];
     assign tmr_mismatch = (state0 != state1) | (state1 != state2) | (state0 != state2);

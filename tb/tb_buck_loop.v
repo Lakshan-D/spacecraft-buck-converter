@@ -1,12 +1,14 @@
 // Closed-loop testbench: RTL controller + behavioural buck plant.
 // Scenarios: start-up at full load, load steps, line steps.
 // Writes results/loop_log.csv (1 us) and results/golden_log.csv (per control tick).
-// FF_EN / SS_STEP select feedforward and soft start. With +tag=NAME the 1 us log goes to
-// results/ablation_NAME.csv and no golden log is written (used by `make ablate`).
+// FF_EN / SS_STEP select feedforward and soft start, SEQ the controller architecture.
+// With +tag=NAME the 1 us log goes to results/ablation_NAME.csv and no golden log is
+// written (used by `make ablate`), unless +gold=PATH asks for one (used by `make sim_seq`).
 `timescale 1ns/1ps
 module tb_buck_loop;
     parameter FF_EN   = 1;
     parameter SS_STEP = 16;
+    parameter SEQ     = 0;                      // 1 = multi-cycle controller (pid_ctrl_seq.v)
     reg clk = 0;
     reg rst = 1;
     always #5 clk = ~clk;                       // 100 MHz
@@ -18,36 +20,42 @@ module tb_buck_loop;
     wire [11:0] adc, vin_adc;
     wire        pwm, mism;
 
-    buck_ctrl_top #(.TMR(1), .FF_EN(FF_EN), .SS_STEP(SS_STEP)) dut (
-        .clk(clk), .rst(rst), .adc(adc), .vin_adc(vin_adc), .pwm(pwm), .tmr_mismatch(mism));
+    wire        upd;
+    buck_ctrl_top #(.TMR(1), .FF_EN(FF_EN), .SS_STEP(SS_STEP), .SEQ(SEQ)) dut (
+        .clk(clk), .rst(rst), .adc(adc), .vin_adc(vin_adc), .pwm(pwm), .tmr_mismatch(mism),
+        .ctrl_upd(upd));
     buck_plant plant (.clk(clk), .pwm(pwm), .vin_b(vin_b), .rload_b(rload_b),
                       .adc(adc), .vin_adc(vin_adc), .vo_b(vo_b), .il_b(il_b));
 
     integer f_loop, f_gold, n = 0;
-    reg        tick_q = 0;
     reg [11:0] adc_q  = 0;
     reg [11:0] vin_q  = 0;
-    reg [8*48-1:0] tag, path;
-    reg        use_tag;
+    reg [8*48-1:0] tag, path, gpath;
+    reg        use_tag, use_gold;
 
     initial begin
-        use_tag = $value$plusargs("tag=%s", tag);
+        use_tag  = $value$plusargs("tag=%s", tag);
+        use_gold = !use_tag || $value$plusargs("gold=%s", gpath);
+        if (!use_tag) $sformat(gpath, "results/golden_log.csv");
         if (use_tag) $sformat(path, "results/ablation_%0s.csv", tag);
         else        $sformat(path, "results/loop_log.csv");
         f_loop = $fopen(path, "w");
         $fwrite(f_loop, "t_us,vo,il,duty,vin,rload\n");
-        if (!use_tag) begin
-            f_gold = $fopen("results/golden_log.csv", "w");
+        if (use_gold) begin
+            f_gold = $fopen(gpath, "w");
             $fwrite(f_gold, "adc,vin,duty\n");
         end
     end
 
-    // Golden log: ADC codes seen at the tick edge and the duty the RTL produced from them
+    // Golden log: ADC codes seen at the tick edge and the duty the RTL produced from them.
+    // The duty is logged when the controller writes its new state (ctrl_upd): one clock
+    // after the tick for SEQ=0, 15 clocks after it for SEQ=1.
     always @(posedge clk) begin
-        if (!use_tag && !rst && tick_q) $fwrite(f_gold, "%0d,%0d,%0d\n", adc_q, vin_q, dut.duty);
-        tick_q <= dut.tick;
-        adc_q  <= adc;
-        vin_q  <= vin_adc;
+        if (use_gold && !rst && upd) $fwrite(f_gold, "%0d,%0d,%0d\n", adc_q, vin_q, dut.duty);
+        if (dut.tick) begin
+            adc_q <= adc;
+            vin_q <= vin_adc;
+        end
     end
 
     // 1 us log
